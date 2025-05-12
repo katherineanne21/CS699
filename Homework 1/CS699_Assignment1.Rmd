@@ -1,0 +1,331 @@
+---
+title: "CS 699 Assignment 1"
+author: "Katherine Rein"
+output: html_document
+---
+
+```{r}
+# Import libraries
+library(glue)
+library(modeest)
+library(dplyr)
+library(fastDummies)
+library(ggplot2)
+```
+
+
+# Problem 1
+
+## Question 1
+
+Calculate the mean, median, and standard deviation (sample) of the age feature
+```{r} 
+# Read in data
+autism_data = read.csv('autism-adult.csv')
+
+# Drop fully NA rows
+autism_data <- autism_data[!apply(is.na(autism_data), 1, all), ]
+
+# Remove 383 year old
+autism_data = autism_data[autism_data$age != 383, ]
+
+# Convert age to integer
+autism_data$age = as.integer(autism_data$age)
+
+# Calculate the mean median and standard deviation for the age feature
+mean =  mean(autism_data$age, na.rm = TRUE)
+median = median(autism_data$age, na.rm = TRUE)
+stdev = sd(autism_data$age, na.rm = TRUE)
+
+# Print answers
+glue('Mean: {mean}')
+glue('Median: {median}')
+glue('Standard Deviation (sample): {stdev}')
+```
+
+```
+After some preliminary data analysis, I noticed there was someone who was 383 years old
+which seems impossible. I removed this entry before continuing on.
+The mean of the data set is 29.20. The median is 27. The sample standard deviation is 9.71.
+```
+
+## Question 2
+
+Determine Q1, Q2, and Q3 of age
+```{r} 
+# Calculate Q1, Q2, Q3
+quantile_vector = quantile(autism_data$age, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+
+# Store individually
+Q1 = quantile_vector[1] 
+Q2 = quantile_vector[2] 
+Q3 = quantile_vector[3]
+
+# Print
+glue('Q1: {Q1}, Q2: {Q2}, Q3: {Q3}')
+```
+
+```
+Q2 is the same as the median of the data set but I also recalculated it. Q1 is 21, Q2 is 27, and Q3 is 35.
+```
+
+## Question 3
+
+Plot the boxplot of the age feature
+```{r}
+# Plot Boxplot
+boxplot(autism_data$age, 
+        main = "Distribution of Age", ylab = "Age",
+        col = "lightblue", notch = FALSE, na.rm = TRUE)
+```
+
+
+
+## Question 4
+
+Implement min-max rescaling on the age feature. Replace the original age feature
+with the rescaled result. Provide the rescaled age for the seventh observation in the
+data.
+```{r} 
+# Find the minimum and maximum age
+min_age = min(autism_data$age, na.rm = TRUE) 
+max_age = max(autism_data$age, na.rm = TRUE)
+
+# Implement min‐max rescaling to the [0, 1] interval
+# Formula: (x − min) / (max − min)
+autism_data$age = (autism_data$age - min_age) / (max_age - min_age)
+
+# Print seventh observation
+seventh_obs = autism_data$age[7]
+print(seventh_obs)
+
+```
+
+```
+For min-max rescaling I used a minimum value of 0 and max of 1. The seventh observation
+is now 0. This means that before the data was rescaled it was the minimum age.
+```
+
+## Question 5
+
+Determine the mode of the country_of_res feature
+```{r} 
+# Handle NAs
+autism_data$country_of_res <- dplyr::na_if(autism_data$country_of_res, '')
+
+# Create a frequency table of unique values
+freq_loc <- table(autism_data$country_of_res, useNA = "no")
+
+# Find the most frequent values of a vector
+mode_loc <- modeest::mfv(autism_data$country_of_res, na_rm = TRUE)
+
+# Concatenate frequencies and modes
+list(frequencies = freq_loc, mode = mode_loc)
+
+```
+
+```
+The mode of the country of residence column is United States with 113 entries.
+```
+
+## Question 6
+
+Review the ethnicity feature. You will notice several missing values in this feature.
+Determine a reasonable imputation for this feature. Explain what you are going to
+do and why. Then replace the original ethnicity feature with the imputed result.
+```{r} 
+# Identify all categories used in the ethnicity feature
+unique(autism_data$ethnicity)
+
+# Turn missing values into NA
+autism_data$ethnicity <- dplyr::na_if(autism_data$ethnicity, '')
+
+# Change all other values into one other value
+autism_data <- autism_data %>%
+  mutate(ethnicity = case_when(
+    ethnicity == '?' ~ 'Other',
+    ethnicity == 'others' ~ 'Other',
+    ethnicity == 'Others' ~ 'Other',
+    ethnicity == NA ~ 'Other',
+    TRUE ~ ethnicity
+  ))
+
+```
+
+```
+After looking at all of the unique values for the ethnicity feature, I noticed there were many entries that meant other. I then changed all of them to other. This seemed like the best way to not overinflate one category (as we don't know where these individuals came from). 
+```
+
+## Question 7
+
+Create a bar graph of your imputed ethnicity feature.
+```{r} 
+barplot(table(autism_data$ethnicity),
+        main = "Ethnicity Distribution",
+        xlab = "Ethnicity",
+        ylab = "Count",
+        col = "skyblue",
+        cex.names = 0.6,
+        las = 2)
+
+```
+
+## Question 8
+
+Implement dummy coding for the gender feature. Replace the original gender
+feature with the coded result. Provide the coded gender for the last ten observations
+in the data.
+```{r} 
+# Ensure gender is treated as a categorical factor
+autism_data$gender <- as.factor(autism_data$gender)
+
+# One encoding of gender column
+d <- fastDummies::dummy_cols(autism_data,
+                             select_columns = "gender", 
+                             remove_selected_columns = TRUE, 
+                             remove_first_dummy = TRUE
+                             )
+
+# Show the last 10
+coded_gender_last10 = tail(d[ , grep("^gender_", names(d)) ], 10)
+coded_gender_last10
+```
+
+## Question 9
+
+Identify which features in your data set are discrete and which are continuous.
+
+```
+From visual investigation, it seems that the following features are discrete: A1_score
+- A10_score, gender, ethnicity, jaundice, autism, country of residence, used app before,
+relation, and class ASD. The only continuous feature is age.
+```
+
+## Question 10
+
+Identify which features in your data set are numeric and which are non-numeric.
+Compare with the discrete/continuous classification you just made and discuss the
+similarities and/or differences you see.
+```{r} 
+# Convert blank strings to NA
+autism_data <- mutate(autism_data, across(where(is.character), ~ dplyr::na_if(.x, '')))
+
+# Identify column classes of the data
+col_classes <- sapply(autism_data, class)
+
+# Link classes and names
+col_classes_df = data.frame(Column = names(autism_data), Class = col_classes)
+
+print(col_classes_df)
+```
+
+```
+The following columns are numeric: A1_Score - A10_Score and age. The non numeric columns
+are: gender, ethnicity, jaundice, autism, country of residence, used app before,
+relation, and Class ASD. The only difference between numeric and continuous is that
+the A score columns are discrete data with numeric classes. This makes them a numeric
+discrete feature which is unlike any other column.
+```
+
+## Question 11
+
+After completing all requested tasks above, print the first 4 observations of the data.
+```{r}
+head(autism_data, n = 4)
+```
+
+
+# Problem 2
+
+## Question 1
+
+Create a scatterplot of feature A1 vs. feature A5.
+```{r}
+# Read in data
+corr_data = read.csv('correlation.csv')
+
+# Drop NAs in both columns
+corr_clean <- tidyr::drop_na(corr_data, A1, A5)
+
+# Make all values numeric
+corr_clean$A1 <- suppressWarnings(as.numeric(corr_clean$A1))
+corr_clean$A5 <- suppressWarnings(as.numeric(corr_clean$A5))
+
+# Create scatterplot
+ggplot(corr_clean, aes(x = A1, y = A5)) +
+  geom_point(color = "steelblue") +
+  geom_smooth(method = "lm", se = FALSE, linewidth = 0.8) + labs(title = "A1 vs. A5 Scatterplot",
+                                                                 x = "Feature A1",
+                                                                 y = "Feature A5") + theme_minimal()
+
+```
+
+## Question 2
+
+Compute the correlation matrix for all five features in the data set.
+```{r}
+# Create a vector of column names
+cols = paste0("A", 1:5)
+
+# Ensure all columns are numeric
+for (v in cols) corr_data[[v]] <- suppressWarnings(as.numeric(corr_data[[v]]))
+
+# Compute the Pearson correlation matrix
+cor_mat <- cor(corr_data[cols], use = "pairwise.complete.obs", method = "pearson")
+
+# Print correlation matrix
+cor_mat
+```
+
+## Question 3
+
+Identify the strongest correlation in the data set. Which factors are involved? Is it a
+positive correlation or a negative correlation?
+``` {r}
+# Switch diagonal to NA
+diag(cor_mat) <- NA
+
+# Find the max correlation value
+max_val = max(cor_mat, na.rm = TRUE)
+
+# Find the position of that max value
+which(cor_mat == max_val, arr.ind = TRUE)
+```
+
+```
+The strongest correlation is 0.465 which correlates A3 and A2. This is a positive 
+correlation because the number is positive.
+```
+
+## Question 4
+
+Implement z-score normalization on all features in the data set
+```{r}
+corr_data[cols] <- as.data.frame(scale(corr_data[cols], center = TRUE, scale = TRUE))
+```
+
+## Question 5
+
+Compute the correlation matrix for all five normalized features in the data set.
+Compare this correlation matrix with the matrix you obtained earlier and discuss the
+similarities and/or differences you see.
+```{r}
+# Create a vector of column names
+cols = paste0("A", 1:5)
+
+# Ensure all columns are numeric
+for (v in cols) corr_data[[v]] <- suppressWarnings(as.numeric(corr_data[[v]]))
+
+# Compute the Pearson correlation matrix
+cor_mat <- cor(corr_data[cols], use = "pairwise.complete.obs", method = "pearson")
+
+# Print correlation matrix
+cor_mat
+```
+
+```
+The correlation matricies are identical. This makes sense because when we normalize 
+features we are already removing the affects of mean and standard deviation.
+```
+
+
