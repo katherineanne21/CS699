@@ -1,7 +1,12 @@
 ---
 title: "CS 699 Assignment 1"
 author: "Katherine Rein"
-output: html_document
+output:
+  pdf_document:
+    latex_engine: xelatex
+    pandoc_args: "--variable=geometry:margin=1in"
+  html_document:
+    df_print: paged
 ---
 
 ```{r}
@@ -66,7 +71,8 @@ glue('Q1: {Q1}, Q2: {Q2}, Q3: {Q3}')
 ```
 
 ```
-Q2 is the same as the median of the data set but I also recalculated it. Q1 is 21, Q2 is 27, and Q3 is 35.
+Q2 is the same as the median of the data set but I also recalculated it. Q1 is 
+21, Q2 is 27, and Q3 is 35.
 ```
 
 ## Question 3
@@ -102,8 +108,9 @@ print(seventh_obs)
 ```
 
 ```
-For min-max rescaling I used a minimum value of 0 and max of 1. The seventh observation
-is now 0. This means that before the data was rescaled it was the minimum age.
+For min-max rescaling I used a minimum value of 0 and max of 1. The seventh 
+observation is now 0. This means that before the data was rescaled it was the
+minimum age.
 ```
 
 ## Question 5
@@ -153,7 +160,10 @@ autism_data <- autism_data %>%
 ```
 
 ```
-After looking at all of the unique values for the ethnicity feature, I noticed there were many entries that meant other. I then changed all of them to other. This seemed like the best way to not overinflate one category (as we don't know where these individuals came from). 
+After looking at all of the unique values for the ethnicity feature, I noticed 
+there were many entries that meant other. I then changed all of them to other. 
+This seemed like the best way to not overinflate one category (as we don't know 
+where these individuals came from). 
 ```
 
 ## Question 7
@@ -196,9 +206,9 @@ coded_gender_last10
 Identify which features in your data set are discrete and which are continuous.
 
 ```
-From visual investigation, it seems that the following features are discrete: A1_score
-- A10_score, gender, ethnicity, jaundice, autism, country of residence, used app before,
-relation, and class ASD. The only continuous feature is age.
+From visual investigation, it seems that the following features are discrete: 
+A1_score - A10_score, gender, ethnicity, jaundice, autism, country of residence,
+used app before, relation, and class ASD. The only continuous feature is age.
 ```
 
 ## Question 10
@@ -220,11 +230,11 @@ print(col_classes_df)
 ```
 
 ```
-The following columns are numeric: A1_Score - A10_Score and age. The non numeric columns
-are: gender, ethnicity, jaundice, autism, country of residence, used app before,
-relation, and Class ASD. The only difference between numeric and continuous is that
-the A score columns are discrete data with numeric classes. This makes them a numeric
-discrete feature which is unlike any other column.
+The following columns are numeric: A1_Score - A10_Score and age. The non numeric
+columns are: gender, ethnicity, jaundice, autism, country of residence, used app
+before, relation, and Class ASD. The only difference between numeric and 
+continuous is that the A score columns are discrete data with numeric classes.
+This makes them a numeric discrete feature which is unlike any other column.
 ```
 
 ## Question 11
