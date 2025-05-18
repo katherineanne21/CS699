@@ -1,0 +1,326 @@
+---
+title: "CS 699 Assignment 2"
+author: "Katherine Rein"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    pandoc_args: "--variable=geometry:margin=1in"
+---
+
+```{r}
+# Import libraries
+library(rsample)
+library(caret)
+library(ROSE)
+library(glmnet) 
+library(tidyverse)
+library(dplyr)
+```
+
+
+# Problem 1
+
+Find the distance between P4 and P5 and the distance between P4 and P9. Is P4 closer to
+P5 or P9? The attributes are nominal, not ordinal. Distances should be between 0 and 1.
+```{r} 
+# Read in data
+data = read.csv('Problem1Data.csv')
+
+# Create a list of columns to compare
+nominal_cols <- c('job', 'marital', 'education', 'default', 'housing', 'loan', 'contact')
+
+# Create a function to find the distance between nominal attributes
+# Scaled Hamming distance = mismatched / total
+# Scale: 0 = identical, 1 = all different
+hamming <- function(id_a, id_b) {
+  i <- match(id_a, data$ID)
+  j <- match(id_b, data$ID)
+  mean (data[i, nominal_cols] != data[j, nominal_cols])
+}
+
+dist_P4_P5 <- hamming("P4", "P5")
+dist_P4_99 <- hamming("P4", "P9")
+closer_car <- ifelse(dist_P4_P5 < dist_P4_99, "P5", "P9")
+```
+
+```
+The closest observation to P4 between P5 and P9 is P9. This is because the hamming
+distance between P4 and P9 is 0.286 which is less than the distance between P4
+and P5 -- 0.571.
+```
+
+# Problem 2
+
+(1). Calculate the distance between O1 and O2 using the Manhattan distance.
+(2). Calculate the distance between O1 and O2 using the Euclidean distance.
+```{r} 
+# Load Data
+data = read.csv('Problem2Data.csv')
+
+# Set Object Column as index
+rownames(data) <- data[[1]]
+data <- data[, -1] 
+
+# Calculate distances
+euclidean_O1_O2 <- as.numeric(dist(data)[1])
+manhattan_O1_O2 <- as.numeric(dist(data, method = "manhattan")[1])
+
+```
+
+```
+The euvlidean distance is 23.17 and the manhattan distance is 41.
+```
+
+# Problem 3
+
+(1). Generate training and holdout partitions on the data set, holding out 1/3 of the data.
+(2). Fit a k-Nearest Neighbor model. Be sure to center and scale the data. Select an
+optimal value of k. Use the optimal model to make predictions on the holdout data.
+Generate a confusion matrix and compute the accuracy.
+(3). Does this seem to be a good model? Discuss why or why not.
+```{r}
+# Load data
+acc_data = read.csv('accidents1000.csv')
+
+# Ensure the class column is categorical
+acc_data$MAX_SEV <- factor(acc_data$MAX_SEV)
+
+# Split 2/3 for train and 1/3 for test
+set.seed(42)
+split <- initial_split(acc_data, prop = 2/3, strata = MAX_SEV) 
+train <- training(split)
+test <- testing(split)
+
+# Use cross validation to find best k
+# Make sure to scale and center data
+ctrl <- trainControl(method = "cv", # 10‐fold CV
+                     number = 10,
+                     classProbs = FALSE, summaryFunction = defaultSummary)
+
+knn_mod <- train(MAX_SEV ~ ., data = train, method = "knn", 
+                 trControl = ctrl, preProcess = c("center", "scale"), # mandated by lecture
+                 tuneLength = 30) # search 30 odd k’s
+
+best_k <- knn_mod$bestTune$k
+
+# Predict on test data
+pred <- predict(knn_mod, newdata = test, type = "raw")
+
+# Create confusion matrix
+cm <- confusionMatrix(data = pred, reference = test$MAX_SEV, positive = "fatal")
+
+# Print values
+list(best_k = best_k, confusion_table = cm$table, accuracy = cm$overall["Accuracy"])
+
+```
+```
+The best k value is 41 and the accuracy is 0.461. 0.461 seems a bit low for this
+to be a good model. As we know, accuracy isn't a great indicator of a model but
+that feels too low.
+```
+
+
+# Problem 4
+
+(1). Remove the observations with MAX_SEV = no-injury
+(2). Generate training and holdout partitions on the remaining data. Use 1/3 of the data
+in the holdout.
+(3). Fit a logistic regression model. Use the model to make predictions on the holdout
+data. Generate a confusion matrix and compute the accuracy and the F-score.
+(6). Apply the method (over-sampling or under-sampling) that is more likely to be
+helpful to the training data you already created in step (2).
+(7). Fit a logistic regression model to the class-balanced data set you just created in step
+(6). Use the model to make predictions on the original holdout data you created in
+step (2). Generate a confusion matrix and compute the accuracy and the F-score.
+(9.) Calculate variable importance for the model you fit in step (7). What are the top 3
+most important variables?
+```{r} 
+# Accident data has already been read in
+
+# Remove no injury observations
+acc_data2 <- subset(acc_data, MAX_SEV != "no-injury")
+
+# Train test split
+set.seed(42)
+split <- initial_split(acc_data2, prop = 2/3, strata = MAX_SEV) 
+train <- training(split)
+test <- testing(split)
+table(train$MAX_SEV)
+
+# Logistic model
+logit_mod <- glm(MAX_SEV ~ ., data = train, family = 'binomial')
+
+# Predict on test data
+prob <- predict(logit_mod, newdata = test, type = "response")
+pred <- factor(ifelse(prob >= 0.5, "fatal", "non-fatal"), levels = levels(test$MAX_SEV))
+
+# Generate confusion matrix
+cm <- confusionMatrix(data = pred, reference = test$MAX_SEV, positive = "fatal")
+
+# Compute accuracy
+acc <- cm$overall["Accuracy"]
+
+# Compute F-score
+calc_measures <- function(cm_tbl) {
+  tp <- cm_tbl["fatal", "fatal"]
+  fp <- cm_tbl["fatal", "non-fatal"]
+  fn <- cm_tbl["non-fatal", "fatal"]
+  precision <- tp / (tp + fp)
+  recall <- tp / (tp + fn)
+  f1 <- 2 * precision * recall / (precision + recall) 
+  c(precision = precision, recall = recall, F1 = f1)
+}
+
+scores <- calc_measures(cm$table)
+
+# Print scores
+list(accuracy = acc,
+     precision = scores["precision"],
+     recall = scores["recall"],
+     F1 = scores["F1"])
+
+# Oversample
+train_over <- ovun.sample(MAX_SEV ~ ., data = train,
+                          method = "over", seed = 33, p = 0.5)$data
+table(train_over$MAX_SEV)
+
+logit_mod <- glm(MAX_SEV ~ ., data = train_over, family = 'binomial')
+prob <- predict(logit_mod, newdata = test, type = "response")
+pred <- factor(ifelse(prob >= 0.5, "fatal", "non-fatal"), levels = levels(test$MAX_SEV))
+cm <- confusionMatrix(data = pred, reference = test$MAX_SEV, positive = "fatal")
+acc <- cm$overall["Accuracy"]
+scores <- calc_measures(cm$table)
+
+# Print scores
+list(accuracy = acc,
+     precision = scores["precision"],
+     recall = scores["recall"],
+     F1 = scores["F1"])
+
+# Look at coeffs
+summary(logit_mod)
+
+```
+
+(4). Does this seem to be a good model? Discuss why or why not.
+```
+No this model is relatively terrible. The best f1 score is 1 and we see an f1
+score of 0.047. This is most likely because our positive occurances are very rare.
+```
+(5). This model has class imbalance. Think about what you’ve learned about over-
+sampling and under-sampling. One of these techniques is less likely to work when
+applied to this data set. Which one, and why?
+```
+The worse sampling technique is undersampling in this scenario. This is because 
+undersampling would decrease the size to only 16 observations if we weight the
+classes equally. When there are very few positive cases (only 8 in this case)
+then it is a bad idea to undersample.
+```
+(8.) Compare this model to the one you fit in step (3). Which, if any, seems to perform
+better? Discuss.
+```
+
+```
+(9.) Calculate variable importance for the model you fit in step (7). What are the top 3
+most important variables?
+```
+The most important features are the ones with the largest (negative or positive)
+coeffs. This is because if the model doesn't think the feature is important it
+will essentially multiply it by 0 to get rid of it. The biggest 3 coeffs are for
+WEATHER_adverse, RushHour, and INT_HWY.
+```
+
+# Problem 5
+
+(1). Generate training and holdout partitions on the data set. Use 1/3 of the data in the
+holdout.
+(2). Fit a multiple linear regression model. Use the model to make predictions on the
+holdout data. Compute the MAE and the RMSE.
+(4). Apply a regularization method of your choosing, such as LASSO or ridge
+regression. Use the regularized model to make predictions on the holdout data.
+Compute the MAE and the RMSE.
+```{r} 
+# Load Data
+pow_data = read.csv('powdermetallurgy.csv')
+
+# Train test split
+set.seed(42)
+split <- initial_split(pow_data, prop = 2/3)
+train <- training(split)
+test <- testing(split)
+
+# Linear model and predictions
+fit <- lm(Shrinkage ~ ., data = train)
+summary(fit)
+pred <- predict(fit, new_data = test)
+
+# MAE and RMSE
+actual = test$Shrinkage
+mae = mean(abs(actual - pred))
+rmse = sqrt(mean((actual - pred)^2))
+
+# Apply regularization
+X <- model.matrix(Shrinkage ~ ., data = train)[, -1]
+y <- train$Shrinkage
+
+# Perform 10-fold cross-validation to find best lambda 
+lambdas_to_try <- 10^seq(-3, 5, length.out = 100) 
+
+# Setting alpha = 0 implements ridge regression 
+ridge_cv <- cv.glmnet(X, y, alpha = 0, 
+                      lambda = lambdas_to_try, 
+                      standardize = TRUE, nfolds = 10) 
+
+# Best cross-validated lambda 
+lambda_cv <- ridge_cv$lambda.min 
+
+# Fit final model with best lambda
+best_ridge <- glmnet(X, y, alpha = 0, lambda = lambda_cv, 
+                     standardize = TRUE) 
+y_hat_cv <- predict(best_ridge, X)
+
+# MAE and RMSE
+mae = mean(abs(y - y_hat_cv))
+rmse = sqrt(mean((y - y_hat_cv)^2))
+
+```
+
+(3). Does this seem to be a good model? Discuss why or why not.
+```
+To me I would call this a good model. The R2 value is 0.842 which means that the
+model explains 84.2% of the variance. Additionally all features are stastically
+significant (with p values less than 0.05) except for one. The MAE is 0.6795 and
+the RMSE is 0.8411.
+```
+(5). Compare this model to the one you worked with in steps (2) and (3). Which, if any,
+seems to perform better? Discuss.
+```
+The better model was the one with the regularization in step 4. The second model
+has an MAE of 0.1978 and a RMSE of 0.2471. This is significantly lower than the
+first model of a MAE of 0.6795 and RMSE of 0.8411
+```
+
+# Problem 6
+
+This problem is about the logistic regression we discussed in the
+class. Consider a dataset that has two independent variables A1 and A2 and a class
+attribute, which takes on either yes or no. Suppose you ran a logistic regression algorithm
+on the dataset and obtained the following coefficients for class yes:
+Coefficient of A1 = 0.045
+Coefficient of A2 = 0.003
+Intercept = -3.485
+Classify the following two unseen objects using the above model:
+O1: A1 = 47, A2 = 213
+O2: A1 = 65, A2 = 276
+Assume that the classification threshold is 0.5.
+```
+The formula: p = 1/(1+e^-(b0+b1*A1+b2*A2))
+b0 = -3.485
+b1 = 0.045
+b2 = 0.003
+
+p_o1 = 0.3250
+p_o2 = 0.5666
+
+With a threshold of 0.5, O1 would be classified as no and O2 as yes.
+```

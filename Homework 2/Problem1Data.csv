@@ -1,0 +1,11 @@
+﻿ID,job,marital,education,default,housing,loan,contact
+P1,unemployed,married,primary,No,no,no,cellular
+P2,services,married,secondary,No,yes,yes,cellular
+P3,management,single,tertiary,No,no,no,cellular
+P4,management,married,tertiary,No,yes,yes,unknown
+P5,blue-collar,single,secondary,No,yes,no,unknown
+P6,management,single,tertiary,No,no,yes,cellular
+P7,self-employed,married,tertiary,No,yes,no,cellular
+P8,technician,married,secondary,No,yes,no,cellular
+P9,entrepreneur,married,tertiary,No,yes,no,unknown
+P10,services,married,primary,No,yes,yes,cellular
