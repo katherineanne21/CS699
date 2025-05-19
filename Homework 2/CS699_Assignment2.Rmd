@@ -135,10 +135,15 @@ step (2). Generate a confusion matrix and compute the accuracy and the F-score.
 (9.) Calculate variable importance for the model you fit in step (7). What are the top 3
 most important variables?
 ```{r} 
-# Accident data has already been read in
+# Load data
+# *** USING 1030 DATA TO MAKE SURE THE SCORING VALUES WORK ***
+acc_data2 = read.csv('accidents1030.csv')
+
+# Ensure the class column is categorical
+acc_data2$MAX_SEV <- factor(acc_data2$MAX_SEV)
 
 # Remove no injury observations
-acc_data2 <- subset(acc_data, MAX_SEV != "no-injury")
+acc_data2 <- subset(acc_data2, MAX_SEV != "no-injury")
 
 # Train test split
 set.seed(42)
@@ -205,21 +210,25 @@ summary(logit_mod)
 (4). Does this seem to be a good model? Discuss why or why not.
 ```
 No this model is relatively terrible. The best f1 score is 1 and we see an f1
-score of 0.047. This is most likely because our positive occurances are very rare.
+score of 0.136. This is most likely because our positive occurances are very rare.
 ```
 (5). This model has class imbalance. Think about what you’ve learned about over-
 sampling and under-sampling. One of these techniques is less likely to work when
 applied to this data set. Which one, and why?
 ```
 The worse sampling technique is undersampling in this scenario. This is because 
-undersampling would decrease the size to only 16 observations if we weight the
-classes equally. When there are very few positive cases (only 8 in this case)
-then it is a bad idea to undersample.
+undersampling would decrease the size to only a few observations if we weight 
+the classes equally. When there are very few positive cases then it is a bad
+idea to undersample.
 ```
 (8.) Compare this model to the one you fit in step (3). Which, if any, seems to perform
 better? Discuss.
 ```
-
+The second model is significantly better. The accuracy and precision are both
+significantly better with values of 0.0782 to 0.7151 for accuracy and 0.0730 to 
+0.0870 for precision. The interesting thing is that the f1 score decreased from
+0.1361 to 0.1356 so perhaps it's not as infinetly better as the accuracy and 
+precision indicate.
 ```
 (9.) Calculate variable importance for the model you fit in step (7). What are the top 3
 most important variables?
@@ -227,7 +236,7 @@ most important variables?
 The most important features are the ones with the largest (negative or positive)
 coeffs. This is because if the model doesn't think the feature is important it
 will essentially multiply it by 0 to get rid of it. The biggest 3 coeffs are for
-WEATHER_adverse, RushHour, and INT_HWY.
+WRK_ZONE, TRAF_WAY_two_way, and WKDY.
 ```
 
 # Problem 5
