@@ -1,0 +1,13 @@
+ID,A1,A2,A3,Class
+1,Medium,Mild,East,Y
+2,Low,Mild,East,Y
+3,High,Mild,East,N
+4,Low,Mild,West,N
+5,Low,Cool,East,Y
+6,Medium,Hot,West,N
+7,High,Hot,East,Y
+8,Low,Cool,West,N
+9,Medium,Hot,East,Y
+10,High,Cool,East,Y
+11,Medium,Mild,East,Y
+12,Low,Cool,West,N

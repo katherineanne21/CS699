@@ -1,0 +1,244 @@
+---
+title: "CS 699 Assignment 5"
+author: "Katherine Rein"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    pandoc_args: "--variable=geometry:margin=1in"
+---
+
+```{r}
+# Import libraries
+library(arules)
+library(recommenderlab)
+library(dplyr)
+library(tidyr)
+library(rsample)
+library(tidymodels)
+library(randomForest)
+library(ranger)
+library(caret)
+library(tidyverse)
+```
+# Problem 1
+```
+Work in written document.
+Part 1 Answer: {2345}, {2356}
+Part 2 Answer: 
+  {234} -> {5}
+  {245} -> {3}
+  {345} -> {2}
+  {24} -> {35}
+  {34} -> {25}
+```
+
+# Problem 2
+
+(1). Load the data, discard the transaction id feature, and convert the data frame from
+strings containing “True” and “False” to a matrix of logical values (TRUE and
+FALSE). Then convert this matrix to a transactions object. Then use the an apriori
+rule miner with a minimum support of 15% and a minimum confidence of 50%.
+How many rules are mined?
+(2). Determine which rule has the highest confidence. What is this rule? Capture the
+portion of the output that states the rule, as well as the support, confidence,
+coverage, and lift.
+(3). Return to the matrix of logical values. For the rule you identified in (2), find the
+number of transactions with both the antecedent and consequent itemsets, the
+number of transactions with the antecedent itemset, and the number of transactions
+with the consequent itemset. Use these values to compute the coverage (LHS-
+support), support, confidence, and lift for the rule. Provide any code you use to do
+these calculations. They should match the results displayed in step (2).
+```{r}
+# Load data
+data = read.csv('basketanalysis.csv')
+
+# Discard transaction ID
+data = subset(data, select = -X)
+
+# Convert True False strings to Booleans
+for (col_name in colnames(data)) {
+  data[[col_name]] = as.logical(data[[col_name]])
+}
+
+# Convert to transactions object
+trans = as(data, "transactions")
+
+# Mine strong rules
+rules = apriori(trans, parameter = list(supp = 0.15, conf = 0.5))
+num_rules = length(rules)
+
+# Find highest confidence
+rules_sorted = sort(rules, by = "confidence", decreasing = TRUE)
+inspect(rules_sorted[1])
+quality(rules_sorted)[1, ]
+
+# Calculate LHS support
+lhs_support = mean(data[, 'Milk'] == 1)
+print(lhs_support)
+
+# Calculate support
+support = mean((data[, 'Milk'] == 1) & (data[, 'chocolate'] == 1))
+print(support)
+
+# Calculate confidence
+confidence = support / lhs_support
+print(confidence)
+
+# Calculate lift
+rhs_support = mean(data[, 'chocolate'] == 1)
+lift = confidence / rhs_support
+print(lift)
+
+```
+
+```
+1.  There are 5 strong rules mined.
+2. The highest confidence rule is {milk} -> {chocolate}.This has a support of
+0.211, a confidence of 0.521, a coverage of 0.405, and a lift of 1.236.
+3. The answers are the same with a support of 0.211, a confidence of 0.521, a 
+coverage of 0.405, and a lift of 1.236.
+```
+
+
+# Problem 3
+
+(1). Load the data and force the data.frame to a realRatingMatrix object. Fit a user-
+based collaborative filtering model to all but 3 of the users (you can choose which
+three to hold out).
+(2). Use the model to make predictions for the three users you held back.
+```{r} 
+# Load data
+data = read.csv('bookratings-small.csv')
+
+# Force into a realRatingMatrix
+ratings_wide <- data %>% 
+  pivot_wider(names_from = ISBN, values_from = Book.Rating,
+              values_fn = mean, values_fill = NA_real_) %>% 
+  arrange(User.ID)
+
+row_ids = ratings_wide$User.ID
+rating_mat = as.matrix(ratings_wide[, -1])
+rownames(rating_mat) = row_ids
+rating_matrix = as(rating_mat, "realRatingMatrix")
+
+# Fit collaborative filtering model (all but 3 users)
+holdout = 1:3
+recommender = Recommender(rating_matrix[-holdout], method = "UBCF")
+
+# Predict
+pred_ratings = predict(recommender, rating_matrix[holdout], type = "ratings")
+pred_list = as(pred_ratings, "list")
+actual_ids = ratings_wide$User.ID[holdout]
+
+top3_list <- Map(function(uid, v) {
+  v <- sort(v, decreasing = TRUE)
+  head(
+    data.frame(user = uid, ISBN = names(v), rating = v, row.names = NULL), 3
+    )
+  }, actual_ids, pred_list)
+
+top3_df = do.call(rbind, top3_list)
+print(top3_df)
+
+```
+
+# Problem 4
+
+Consider the following A/B testing scenario for a manufacturing
+plant which is having a problem with a customer refusing to buy their product because
+too many of the items produced have a manufacturing defect. The plant makes some
+changes to the production process and uses A/B testing to determine whether they have
+made a significant reduction of the defect rate.
+Before the changes, the plant manufactured 200 products for the customer, but 20 of them
+had defects. After making their process improvements, they made another 250 products,
+and only 10 of them had defects. It appears the defect rate has decreased. Use a statistical
+test to determine whether the reduction is statistically significant.
+```{r} 
+# Before improvement
+nA = 200
+defectA = 20
+successA = nA - defectA
+
+# After improvement
+nB = 250
+defectB = 10
+successB = nB - defectB
+
+# Test
+prop.test(c(defectA, defectB), c(nA, nB), alt = "greater", correct = FALSE)
+
+```
+
+```
+Because the p value is less than 0.05 we can reject the null hypothesis. This means
+that the reduction is statistically significant.
+```
+
+# Problem 5
+
+(1). Generate training and holdout partitions on the data set. Use 1/3 of the data in the
+holdout.
+(2). Fit a random forest model, applying a training grid to tune the parameters. Use the
+random forest model to make probability-metric predictions on two versions of the
+holdout data: one with the offer (treatment) feature set to Discount and the other
+with the offer feature set to No Offer. Then compute the uplift for the treatment.
+Obtain Q1, the median, and Q3 for the predicted uplift. Make conclusions.
+```{r} 
+# Load data
+data = read.csv('uplift-small.csv')
+
+# Train test split
+set.seed(42)
+split <- initial_split(data, prop = 2/3, strata = conversion) 
+train <- training(split)
+test <- testing(split)
+
+# Fit random forest model
+train_control <- trainControl(method="cv")
+rf.grid = expand.grid(mtry = c(3, 4, 5)) 
+model <- train(conversion ~ ., data = train,
+                      trControl = train_control,
+                      method = "rf", tuneGrid = rf.grid)
+
+# Probability Metric Predictions
+
+# No Offer
+uplift_df = test
+uplift_df$offer <- 'No Offer'
+predTreatment <- predict(model, newdata = uplift_df, type = "prob")
+predTreatment <- tibble::rowid_to_column(predTreatment, "CID")
+head(predTreatment)
+
+# Discount
+uplift_df = test
+uplift_df$offer <- 'Discount'
+predControl <- predict(model, newdata = uplift_df, type = "prob")
+predControl <- tibble::rowid_to_column(predControl, "CID")
+head(predControl)
+
+# Calculate uplift
+upliftResult <- data.frame(CID = predTreatment$CID,
+  probYesPromotion = predTreatment[, 3],
+  probNoPromotion = predControl[, 3],
+  uplift = predTreatment[, 3] - predControl[, 3]
+)
+head(upliftResult)
+
+# select uplift > 5%
+uplift_0.05 <- upliftResult[upliftResult$uplift > 0.05, ]
+# sort
+sorted_uplift <- uplift_0.05[order(-uplift_0.05$uplift), ]
+sorted_uplift
+
+# Q1, the median, and Q3 for the predicted uplift
+summary_stats = quantile(upliftResult$uplift, probs = c(0.25, 0.5, 0.75))
+print(summary_stats)
+```
+
+```
+Since the median uplift is less than 0, this means the discount has an overall
+negative effect. Additionally the third quartile is 0.002 which is very close to 0.
+This means that if the discount isn't working it simply has no effect so we would
+be wasting resources.
+```
+

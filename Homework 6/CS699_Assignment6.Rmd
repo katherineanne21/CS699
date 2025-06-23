@@ -1,0 +1,199 @@
+---
+title: "CS 699 Assignment 6"
+author: "Katherine Rein"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    pandoc_args: "--variable=geometry:margin=1in"
+---
+
+```{r}
+# Import libraries
+```
+# Problem 1
+
+```
+My work is in the written document. The IDs in each cluster are...
+Cluster 1: 1,2,3,4,7
+Cluster 2: 5,6
+```
+
+# Problem 2
+```
+My work is in the written document. The maximum distance between the red and
+the green clusters is 8. The centroid distance is 4.09.
+```
+
+# Problem 3
+
+(1). Apply k-means clustering to the data. Which value of k do you recommend?
+(2). Which cluster or clusters seem to be associated with high Examination and high
+Education scores? Which Swiss provinces are associated with these clusters?
+```{r}
+library(tidyverse)
+library(dplyr)
+
+# Read in data
+data(swiss)
+
+# Standardize data
+scaled = scale(swiss)
+
+# Best K
+set.seed(31)
+tot_sse = c()
+
+for(k in 2:10) {
+  km = kmeans(scaled, centers=k, nstart=25)
+  tot_sse[k] = km$tot.withinss}
+
+# Visualize best k
+plot(2:10, tot_sse[2:10], type='o', pch=19, xlab='k', ylab='Total SSE')
+
+tot_tbl = tibble(k=2:10, SSE=tot_sse[2:10])
+tot_tbl = tot_tbl %>% 
+  mutate(gain=lag(SSE)-SSE) %>% 
+  mutate(base_gain=gain[which(!is.na(gain))[1]]) %>%
+  mutate(gain_pct=round(100*gain/base_gain,2)) %>%
+  select(-base_gain)
+  
+knitr::kable(tot_tbl, caption='SSE, marginal gain, gain % of first')
+
+# Run with best k
+set.seed(31)
+best_k = 3
+k3 = kmeans(scaled, centers=best_k, nstart=25) 
+swiss$cluster = k3$cluster
+cent = data.frame(k3$centers) 
+cent$cluster <- 1:nrow(cent)
+print('Centroids:')
+print(cent)
+
+swiss <- swiss %>% 
+  rownames_to_column(var = "canton")
+
+target <- cent %>% 
+  arrange(desc(Examination), desc(Education)) %>%
+  slice(1) %>% 
+  pull(cluster)
+
+states_high <- swiss %>% 
+  filter(cluster == target) %>% 
+  pull(canton)
+
+print('Highest Examination and Education:')
+print(states_high)
+
+```
+
+```
+1) The biggest drop is from 2 to 3 to 4. From the table, we see that k = 4 only 
+benefited 40% of what k = 3 benefited. Because of this we will likely choose k = 3.
+2) The cluster containing Lausanne, La Vallee, Vevey, La Chauxdfnd, Neuchatel, 
+V. De Geneve, Rive Droite, and Rive Gauche has the highest Examination and
+Education scores.
+```
+
+# Problem 4
+```
+My work is in the written document. The clusters were created in the following 
+order: bc, ef, efh, dg, abc, abcdg, abcdgefh.
+```
+
+# Problem 5
+
+(1). Plot the time series.
+(2). Create either a seasonal subseries plot or a seasonal boxplot. Comment on the
+patterns you see.
+(3). Hold out the last year of data. Attempt at least two regression-based forecasts.
+Measure each model’s performance using one or more appropriate metrics of your
+choice.
+(4). Report the best model. Explain the trend.
+```{r} 
+library(forecast)
+library(tidyverse)
+
+# Plot time series
+data(AirPassengers)
+plot(AirPassengers, type = "l")
+
+# Create dataframe
+ap.df <- data.frame(
+  passengers = as.numeric(AirPassengers),
+  month = factor(month.abb[cycle(AirPassengers)], levels = month.abb)
+)
+
+# Seasonal Boxplot
+boxplot(passengers ~ month, data = ap.df,
+        xlab = "Month", ylab = "Air Passengers",
+        main = "Monthly Air Passengers (1949–1960)")
+
+# Train test split
+train <- window(AirPassengers, end = c(1959, 12))
+test <- window(AirPassengers, start = c(1960, 1))
+
+# Linear model
+lm <- tslm(train ~ trend)
+
+# Linear with seasonality
+linear.season <- tslm(train ~ trend + season)
+
+# Exponential model
+expmod <- tslm(train ~ trend, lambda = 0)
+
+# Quadratic model
+quadratic <- tslm(train ~ trend + I(trend^2))
+
+# Quadratic with seasonality
+quadratic.season <- tslm(train ~ trend + I(trend^2) + season)
+
+# Actual vs predicted
+nValid = 12
+actual = as.numeric(test)
+pred_lm = as.numeric(forecast(lm, h = nValid)$mean)
+pred_linear.season = as.numeric(forecast(linear.season, h = nValid)$mean)
+pred_expmod = as.numeric(forecast(expmod, h = nValid)$mean)
+pred_quadratic = as.numeric(forecast(quadratic, h = nValid)$mean)
+pred_quadratic.season = as.numeric(forecast(quadratic.season, h = nValid)$mean)
+
+# RMSE
+rmse <- function(actual, predicted) {
+  sqrt(mean((actual - predicted)^2))
+}
+
+rmse_lm = rmse(actual, pred_lm)
+rmse_linear.season = rmse(actual, pred_linear.season)
+rmse_expmod = rmse(actual, pred_expmod)
+rmse_quadratic = rmse(actual, pred_quadratic)
+rmse_quadratic.season = rmse(actual, pred_quadratic.season)
+
+print('RMSE')
+cat('Linear Model:', rmse_lm, "\n")
+cat('Linear Season Model:', rmse_linear.season, "\n")
+cat('Exponential Model:', rmse_expmod, "\n")
+cat('Quadratic Model:', rmse_quadratic, "\n")
+cat('Quadratic Season Model:', rmse_quadratic.season, "\n")
+
+# Plot all 4 models (actual vs predicted)
+predictions <- cbind(pred_lm, pred_linear.season, pred_expmod, pred_quadratic, pred_quadratic.season)
+plot(actual, type = "l", col = "black", lwd = 2, ylim = range(c(actual, predictions)),
+     ylab = "Passengers", xlab = "Time (months)", main = "Actual vs Predicted")
+matlines(predictions, col = c("red", "blue", "green", "purple", "orange"), lty = 2)
+legend("topleft", legend = c("Actual", "Linear Model", "Linear + Season", "Exp. Model", 
+                             "Quadratic", "Quadratic + Season"),
+       col = c("black", "red", "blue", "green", "purple", "orange"), lty = c(1, 2, 2, 2, 2, 2), 
+       lwd = c(2, 1, 1, 1, 1, 1))
+```
+
+```
+2) From the seasonal boxplot, I can tell that lots of people fly in the summer
+and there is also a slight up tick in December. Both of these make sense as both
+kids are out of school in the summer and weather is nicer. Additionally December
+makes sense as this is when Christmas is and often times companies give time off
+for that.
+3) The best model was the quadratic plus seasonality model. It had the lowest RMSE
+of 39.94. The overall trend is relatively even until the summer months. During the
+summer it pops up and then goes back down.
+```
+
+
